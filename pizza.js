@@ -39,6 +39,13 @@ if (Meteor.isClient) {
       Session.set('order', order._id);
       Session.set('url', window.location.href);
     }
+
+    $('#share-link-qr').qrcode({
+      size: 150,
+      text: Session.get('url')
+    });
+
+
   });
   Session.set('url', window.location.href);
 
@@ -55,6 +62,10 @@ if (Meteor.isClient) {
         return value;
       });
       return _.sortBy(pizzas, function(pizza){ return -pizza.length; });
+    },
+    items_total_count: function() {
+      var items = OrderItems.find({order: Session.get('order')}).fetch();
+      return items.length;
     },
     error: function() {
       return Session.get('error');
@@ -89,9 +100,28 @@ if (Meteor.isClient) {
       $('.new-pizza [name="pizza"]').val(name).next().focus();
     },
     "click .pizza-item small.deletable": function(event) {
-      var id = $(event.target).data('id');
-      OrderItems.remove({_id: id});
-    }
+      if (confirm("Are you sure?")) {
+        var id = $(event.target).data('id');
+        OrderItems.remove({_id: id});
+      }
+    },
+    "click #toggle-share-link-qr": function(event) {
+      $('#share-link-qr').toggle();
+    },
+    "click #share-link": function(e){
+        // Create an auxiliary hidden input
+        var aux = document.createElement("input");
+        // Get the text from the element passed into the input
+        aux.setAttribute("value", Session.get('url'));
+        // Append the aux input to the body
+        document.body.appendChild(aux);
+        // Highlight the content
+        aux.select();
+        // Execute the copy command
+        document.execCommand("copy");
+        // Remove the input from the body
+        document.body.removeChild(aux);
+      }
   });
   function time_left() {
     var date = new Date();
@@ -107,7 +137,7 @@ if (Meteor.isClient) {
   }
   function format_time(time) {
     var prefix = '';
-    if (time[1] < 0) {
+    if (time[0] < 0 || time[1] < 0) {
       prefix = '-';
     }
     time[0] = Math.abs(time[0]);
@@ -149,10 +179,12 @@ if (Meteor.isClient) {
   });
   Template.timer.events({
     "submit .start-timer": function(event) {
-      var mins = parseInt(event.target.minutes.value.trim());
-      var end_date = (new Date()).valueOf() + mins * 60000;
-      Orders.update(Session.get('order'), { $set: {timer_end: end_date}})
-      return false;
+      if (confirm("Are you sure?")) {
+        var mins = parseInt(event.target.minutes.value.trim());
+        var end_date = (new Date()).valueOf() + mins * 60000;
+        Orders.update(Session.get('order'), { $set: {timer_end: end_date}})
+        return false;
+      }
     }
   });
   Template.swish.helpers({
@@ -216,7 +248,8 @@ if (Meteor.isServer) {
       return OrderItems.find();
     });
     Meteor.setInterval(function() {
-      var time = new Date() - 10800000; // 3 hours
+      var milliseconds = 172800 * 1000; // 48 hours in ms
+      var time = new Date() - milliseconds;
       Orders.remove({createdAt: { $lt: time }});
       OrderItems.remove({createdAt: { $lt: time }});
     }, 600000); // every 10th minute
